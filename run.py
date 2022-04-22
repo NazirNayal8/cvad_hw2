@@ -1,21 +1,21 @@
-import logging
-import time
-import datetime
-import sys
 import argparse
-import torch
-import numpy as np
-from pathlib import Path
+import datetime
+import logging
 import os
-from tqdm import tqdm
-from utils import *
 import random
+import sys
+import time
+from pathlib import Path
 
+import numpy as np
+import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
-from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+from tqdm import tqdm
 
+from utils import *
 
 torch.manual_seed(0)
 torch.cuda.manual_seed(0)
@@ -45,7 +45,7 @@ parser.add_argument('--lr_decay_schedule', type=int,
 
 
 # === Model Saving/Loading Parameters ===
-parser.add_argument('--model_save_path', type=str, default=None,
+parser.add_argument('--model_save_path', type=str, default="./",
                     help="Path to save per epoch model")
 parser.add_argument('--pretrain_path', type=str, default=None,
                     help='path of pretrained/checkpoint model')
