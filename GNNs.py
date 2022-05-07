@@ -62,9 +62,9 @@ class Global_Graph(nn.Module):
         V = self.key(hidden_states)
 
         # fill masked positions with very negative numbers
-        QK_T = Q.dot(K.T).masked_fill(attention_mask.type(torch.BoolTensor), -1e8)
+        QK_T = Q.matmul(K.T).masked_fill(attention_mask.type(torch.BoolTensor), -1e8)
 
-        return F.softmax(QK_T, dim=1).dot(V)
+        return F.softmax(QK_T, dim=1).matmul(V)
 
 
 
