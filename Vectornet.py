@@ -78,10 +78,16 @@ class VectorNet(nn.Module):
         outputs = outputs[:, :- 6].view([batch_size, 6, 30, 2])
 
         ### YOUR CODE HERE ###
+        loss = 0
         for i in range(batch_size):
             gt_points = np.array(labels[i]).reshape([30, 2])
-            argmin = None  # find prediction with closest endpoint to gt
-            loss = None  # find loss over predicted trajectory argmin
+            
+            argmin = torch.argmin(pred_probs, dim=1).type(torch.LongTensor)  # find prediction with closest endpoint to gt
+            
+            loss += F.mse_loss(outputs[argmin], gt_points) + F.nll_loss(pred_probs, argmin)# find loss over predicted trajectory argmin
+
+        loss /= batch_size
+            
         ### YOUR CODE HERE ###
 
         if validate:
