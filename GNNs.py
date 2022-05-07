@@ -91,13 +91,16 @@ class Sub_Graph(nn.Module):
 
         num_polylines, num_vectors, _ = hidden_states.shape
 
-        mask = torch.ones_like(hidden_states, device=hidden_states.device)
-        for i in range(len(lengths)):
-            mask[i, lengths[i]:] = -1e8
+        
 
         for i in range(self.depth):
 
             hidden_states = self.g_enc[i](hidden_states)
+
+            mask = torch.ones_like(hidden_states, device=hidden_states.device)
+            for i in range(len(lengths)):
+                mask[i, lengths[i]:] = -1e8
+
             agg = torch.max(hidden_states * mask, dim=1).values
             agg = agg.unsqueeze(1)
             agg = agg.repeat(1, num_vectors, 1)
