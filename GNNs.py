@@ -1,10 +1,26 @@
 import math
+from re import M
 
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 import utils
 
+
+class MLP(nn.Module):
+
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+
+        self.layer = nn.Sequential(
+            nn.Linear(in_channels, out_channels),
+            nn.LayerNorm(out_channels),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+
+        return self.layer(x)
 
 class Concat(nn.Module):
 
@@ -61,11 +77,8 @@ class Sub_Graph(nn.Module):
         
         # a single layer MLP shared for all nodes, followed by layer normalization and ReLU
         self.g_enc = nn.ModuleList([
-            
             nn.Sequential(
-                nn.Linear((2 ** i) * hidden_size, (2 ** i) * hidden_size),
-                nn.LayerNorm((2 ** i) * hidden_size),
-                nn.ReLU()
+                MLP((2 ** i) * hidden_size, (2 ** i) * hidden_size)
             ) for i in range(depth)
         ])
 
