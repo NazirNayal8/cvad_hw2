@@ -7,13 +7,14 @@ from GNNs import MLP, Global_Graph, Sub_Graph
 from utils import (batch_init, get_dis_point_2_points, merge_tensors,
                    to_origin_coordinate)
 
+global_input_hidden_scale = 8
 
 class VectorNet(nn.Module):
     def __init__(self, hidden_size, device):
         super(VectorNet, self).__init__()
 
         self.sub_graph = Sub_Graph(hidden_size)
-        self.global_graph = Global_Graph(hidden_size)
+        self.global_graph = Global_Graph(hidden_size * global_input_hidden_scale)
         self.predict_traj = MLP(hidden_size, 6*30*2 + 6)
         self.device = device
         self.hidden_size = hidden_size
@@ -62,7 +63,7 @@ class VectorNet(nn.Module):
             mapping, matrix, polyline_spans, batch_size)
 
         inputs, inputs_lengths = merge_tensors(
-            element_states_batch, self.device, self.hidden_size)
+            element_states_batch, self.device, self.hidden_size * global_input_hidden_scale)
         # inputs.shape = (batch_size, max(#polylines), hidden_size)
 
         max_poly_num = max(inputs_lengths)
