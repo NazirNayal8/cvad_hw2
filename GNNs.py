@@ -1,6 +1,6 @@
 import math
 from re import M
-
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
@@ -13,9 +13,10 @@ class MLP(nn.Module):
         super().__init__()
 
         self.layer = nn.Sequential(
-            nn.Linear(in_channels, out_channels),
-            nn.LayerNorm(out_channels),
-            nn.ReLU()
+            nn.Linear(in_channels, in_channels),
+            nn.LayerNorm(in_channels),
+            nn.ReLU(),
+            nn.Linear(in_channels, out_channels)
         )
 
     def forward(self, x):
@@ -60,11 +61,16 @@ class Global_Graph(nn.Module):
         Q = self.query(hidden_states)
         K = self.key(hidden_states)
         V = self.key(hidden_states)
-
         # fill masked positions with very negative numbers
-        QK_T = Q.matmul(K.T).masked_fill(attention_mask.type(torch.BoolTensor), -1e8)
+        QK_T = Q.matmul(K.permute(0, 2, 1))
+       
+        QK_T = QK_T.masked_fill(attention_mask.to(QK_T.device) == 0, -1e15)
 
-        return F.softmax(QK_T, dim=1).matmul(V)
+        result = F.softmax(QK_T, dim=1).matmul(V)
+        
+        # print("Global Graph:", result.shape, result.min(), result.max(), result.mean())
+
+        return result
 
 
 
@@ -74,14 +80,12 @@ class Sub_Graph(nn.Module):
 
         self.hidden_size = hidden_size
         self.depth = depth
-        
-        # a single layer MLP shared for all nodes, followed by layer normalization and ReLU
+
         self.g_enc = nn.ModuleList([
             nn.Sequential(
-                MLP((2 ** i) * hidden_size, (2 ** i) * hidden_size)
+                MLP(hidden_size, hidden_size // 2)
             ) for i in range(depth)
         ])
-
 
     def forward(self, hidden_states, lengths):
         """
@@ -90,20 +94,36 @@ class Sub_Graph(nn.Module):
         """
 
         num_polylines, num_vectors, _ = hidden_states.shape
-
-        
+      
+        lengths = torch.from_numpy(np.array(lengths)).to(hidden_states.device)        
+        ones_index = torch.arange(num_vectors).repeat(num_polylines, 1).to(hidden_states.device) < lengths[:, None]
 
         for i in range(self.depth):
 
             hidden_states = self.g_enc[i](hidden_states)
 
-            mask = torch.ones_like(hidden_states, device=hidden_states.device)
-            for i in range(len(lengths)):
-                mask[i, lengths[i]:] = -1e8
+            mask = torch.zeros_like(hidden_states, device=hidden_states.device)
+            
+            idx = ones_index.unsqueeze(2).repeat(1, 1, hidden_states.shape[2])
+            mask[idx] = 1
+            
+            # testing the correctness of the mask
+            # test_mask = torch.ones_like(hidden_states, device=hidden_states.device)
+            
+            # for j in range(len(lengths)):
+            #     test_mask[j, lengths[j]:] = 0
 
-            agg = torch.max(hidden_states * mask, dim=1).values
+            # assert (~(test_mask == mask)).sum() == 0, "Wrong mask" 
+
+            agg = torch.max(hidden_states.masked_fill(mask == 0, -1e15), dim=1).values
+            # agg = torch.max(hidden_states, dim=1).values
+
             agg = agg.unsqueeze(1)
             agg = agg.repeat(1, num_vectors, 1)
             hidden_states = torch.cat([hidden_states, agg], dim=2)
         
-        return torch.max(hidden_states, dim=1).values
+        hidden_states = torch.max(hidden_states, dim=1).values
+
+        # print("SubGraph:", hidden_states.shape, hidden_states.min(), hidden_states.max(), hidden_states.mean())
+
+        return hidden_states

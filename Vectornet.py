@@ -7,7 +7,7 @@ from GNNs import MLP, Global_Graph, Sub_Graph
 from utils import (batch_init, get_dis_point_2_points, merge_tensors,
                    to_origin_coordinate)
 
-global_input_hidden_scale = 8
+global_input_hidden_scale = 1
 
 class VectorNet(nn.Module):
     def __init__(self, hidden_size, device):
@@ -15,7 +15,7 @@ class VectorNet(nn.Module):
 
         self.sub_graph = Sub_Graph(hidden_size)
         self.global_graph = Global_Graph(hidden_size * global_input_hidden_scale)
-        self.predict_traj = MLP(hidden_size, 6*30*2 + 6)
+        self.predict_traj = MLP(hidden_size * global_input_hidden_scale, 6*30*2 + 6)
         self.device = device
         self.hidden_size = hidden_size
         self.traj_completion_criterion = nn.SmoothL1Loss()
@@ -79,13 +79,18 @@ class VectorNet(nn.Module):
         outputs = outputs[:, :- 6].view([batch_size, 6, 30, 2])
 
         ### YOUR CODE HERE ###
-        loss = 0
+        loss = torch.tensor(0.0).float().to(outputs.device)
         for i in range(batch_size):
-            gt_points = np.array(labels[i]).reshape([30, 2])
+            gt_points = torch.from_numpy(np.array(labels[i]).reshape([30, 2])).float().to(outputs.device)
             
-            argmin = torch.argmin(pred_probs, dim=1).type(torch.LongTensor)  # find prediction with closest endpoint to gt
+            # argmin = torch.argmax(pred_probs[i], dim=0).type(torch.LongTensor).to(outputs.device)  # find prediction with closest endpoint to gt
             
-            loss += F.mse_loss(outputs[argmin], gt_points) + F.nll_loss(pred_probs, argmin)# find loss over predicted trajectory argmin
+            #print(outputs[i, -1].shape, gt_points[-1].shape)
+            
+            argmin = torch.argmin(torch.sum((gt_points[-1].unsqueeze(0).repeat(outputs[i].shape[0], 1) - outputs[i,:,-1]) ** 2))
+
+            loss += F.smooth_l1_loss(outputs[i, argmin].float(), gt_points).float()
+            loss += F.nll_loss(pred_probs[i].float(), argmin).float()
 
         loss /= batch_size
             
